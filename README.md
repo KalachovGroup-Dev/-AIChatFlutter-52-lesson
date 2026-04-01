@@ -29,22 +29,32 @@ AIChatFlutter - это мультиплатформенное приложени
 
 Основные директории и файлы:
 
-- `lib/` - Основной код приложения
-  - `main.dart` - Точка входа в приложение
-  - `api/` - Модули для работы с API
-    - `openrouter_client.dart` - Универсальный клиент для работы с OpenRouter и VseGPT
-  - `models/` - Модели данных
-    - `message.dart` - Модель сообщения с поддержкой токенов и стоимости
-  - `providers/` - State management
-    - `chat_provider.dart` - Провайдер для управления состоянием чата
-  - `services/` - Сервисы
-    - `database_service.dart` - Сервис для работы с локальной базой данных
-    - `analytics_service.dart` - Сервис для сбора и анализа статистики
-  - `screens/` - Экраны приложения
-    - `chat_screen.dart` - Основной экран чата
-- `android/`, `ios/`, `windows/`, `linux/` - Платформо-зависимые конфигурации
-- `assets/` - Ресурсы приложения
-- `pubspec.yaml` - Зависимости проекта
+- `lib/` — Основной код приложения
+  - `main.dart` — Точка входа в приложение
+  - `api/` — Модули для работы с API
+    - `openrouter_client.dart` — Универсальный клиент для работы с OpenRouter и VseGPT
+  - `auth/` — Модуль аутентификации (Добавлено)
+    - `auth_config.dart`
+    - `auth_provider.dart`
+    - `balance_checker.dart`
+    - `pin_generator.dart`
+    - `provider_detector.dart`
+  - `models/` — Модели данных
+    - `message.dart` — Модель сообщения с поддержкой токенов и стоимости
+  - `providers/` — State management
+    - `chat_provider.dart` — Провайдер для управления состоянием чата
+  - `services/` — Сервисы
+    - `analytics_service.dart` — Сервис для сбора и анализа статистики
+    - `database_service.dart` — Сервис для работы с локальной базой данных
+    - `secure_storage_service.dart` — Сервис защищенного хранения данных (Добавлено)
+  - `screens/` — Экраны приложения
+    - `api_key_entry_screen.dart` (Добавлено)
+    - `auth_gate.dart` (Добавлено)
+    - `chat_screen.dart` — Основной экран чата
+    - `pin_entry_screen.dart` (Добавлено)
+- `android/`, `ios/`, `windows/`, `linux/` — Платформо-зависимые конфигурации
+- `assets/` — Ресурсы приложения
+- `pubspec.yaml` — Зависимости проекта
 
 ## Основные модули
 
