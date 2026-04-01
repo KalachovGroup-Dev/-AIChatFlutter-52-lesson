@@ -4,7 +4,7 @@
 
 ---
 ## 🤝 Благодарности
-Основано на учебном проекте [AIChatFlutter - Чат-приложение с ИИ]([https://github.com/neuro-fill/AIChatFlutter]). 
+Основано на учебном проекте TheFounder [AIChatFlutter - Чат-приложение с ИИ]([https://github.com/neuro-fill/AIChatFlutter]). 
 В данной версии полностью переработана система безопасности, добавлен PIN-код и поддержка VSEGPT.
 
 # AIChatFlutter - Чат-приложение с ИИ
