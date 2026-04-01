@@ -7,14 +7,19 @@ import 'package:flutter/foundation.dart';
 // Import package for working with .env files
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
+import '../auth/auth_config.dart';
+import '../auth/auth_provider.dart';
+import '../services/secure_storage_service.dart';
+
 // Класс клиента для работы с API OpenRouter
 class OpenRouterClient {
-  // API ключ для авторизации
-  final String? apiKey;
-  // Базовый URL API
-  final String? baseUrl;
-  // Заголовки HTTP запросов
-  final Map<String, String> headers;
+  final SecureStorageService _secureStorage;
+
+  /// Для UI/логики, где нужно понять текущий провайдер.
+  Future<AuthProvider> get provider async => _requireProvider();
+
+  /// Для отображения и внутренней логики.
+  Future<String> get baseUrl async => _requireBaseUrl();
 
   // Единственный экземпляр класса (Singleton)
   static final OpenRouterClient _instance = OpenRouterClient._internal();
@@ -26,15 +31,7 @@ class OpenRouterClient {
 
   // Приватный конструктор для реализации Singleton
   OpenRouterClient._internal()
-      : apiKey =
-            dotenv.env['OPENROUTER_API_KEY'], // Получение API ключа из .env
-        baseUrl = dotenv.env['BASE_URL'], // Получение базового URL из .env
-        headers = {
-          'Authorization':
-              'Bearer ${dotenv.env['OPENROUTER_API_KEY']}', // Заголовок авторизации
-          'Content-Type': 'application/json', // Указание типа контента
-          'X-Title': 'AI Chat Flutter', // Название приложения
-        } {
+      : _secureStorage = SecureStorageService() {
     // Инициализация клиента
     _initializeClient();
   }
@@ -44,16 +41,7 @@ class OpenRouterClient {
     try {
       if (kDebugMode) {
         print('Initializing OpenRouterClient...');
-        print('Base URL: $baseUrl');
-      }
-
-      // Проверка наличия API ключа
-      if (apiKey == null) {
-        throw Exception('OpenRouter API key not found in .env');
-      }
-      // Проверка наличия базового URL
-      if (baseUrl == null) {
-        throw Exception('BASE_URL not found in .env');
+        print('dotenv MAX_TOKENS: ${dotenv.env['MAX_TOKENS']}');
       }
 
       if (kDebugMode) {
@@ -68,9 +56,42 @@ class OpenRouterClient {
     }
   }
 
+  Future<AuthProvider> _requireProvider() async {
+    final raw = await _secureStorage.getProvider();
+    final provider = AuthProviderX.fromStorageValue(raw);
+    if (provider == null) {
+      throw Exception('Provider not found in secure storage');
+    }
+    return provider;
+  }
+
+  Future<String> _requireApiKey() async {
+    final apiKey = await _secureStorage.getApiKey();
+    if (apiKey == null || apiKey.trim().isEmpty) {
+      throw Exception('API key not found in secure storage');
+    }
+    return apiKey;
+  }
+
+  Future<String> _requireBaseUrl() async {
+    final provider = await _requireProvider();
+    return AuthConfig.baseUrlFor(provider);
+  }
+
+  Future<Map<String, String>> _headers() async {
+    final apiKey = await _requireApiKey();
+    return {
+      'Authorization': 'Bearer ${apiKey.trim()}',
+      'Content-Type': 'application/json',
+      'X-Title': 'AI Chat Flutter',
+    };
+  }
+
   // Метод получения списка доступных моделей
   Future<List<Map<String, dynamic>>> getModels() async {
     try {
+      final baseUrl = await _requireBaseUrl();
+      final headers = await _headers();
       // Выполнение GET запроса для получения моделей
       final response = await http.get(
         Uri.parse('$baseUrl/models'),
@@ -135,6 +156,8 @@ class OpenRouterClient {
   // Метод отправки сообщения через API
   Future<Map<String, dynamic>> sendMessage(String message, String model) async {
     try {
+      final baseUrl = await _requireBaseUrl();
+      final headers = await _headers();
       // Подготовка данных для отправки
       final data = {
         'model': model, // Модель для генерации ответа
@@ -186,9 +209,11 @@ class OpenRouterClient {
   // Метод получения текущего баланса
   Future<String> getBalance() async {
     try {
+      final baseUrl = await _requireBaseUrl();
+      final headers = await _headers();
       // Выполнение GET запроса для получения баланса
       final response = await http.get(
-        Uri.parse(baseUrl?.contains('vsegpt.ru') == true
+        Uri.parse(baseUrl.contains('vsegpt.ru')
             ? '$baseUrl/balance'
             : '$baseUrl/credits'),
         headers: headers,
@@ -203,7 +228,7 @@ class OpenRouterClient {
         // Парсинг данных о балансе
         final data = json.decode(response.body);
         if (data != null && data['data'] != null) {
-          if (baseUrl?.contains('vsegpt.ru') == true) {
+          if (baseUrl.contains('vsegpt.ru')) {
             final credits =
                 double.tryParse(data['data']['credits'].toString()) ??
                     0.0; // Доступно средств
@@ -216,7 +241,7 @@ class OpenRouterClient {
           }
         }
       }
-      return baseUrl?.contains('vsegpt.ru') == true
+      return baseUrl.contains('vsegpt.ru')
           ? '0.00₽'
           : '\$0.00'; // Возвращение нулевого баланса по умолчанию
     } catch (e) {
@@ -230,11 +255,11 @@ class OpenRouterClient {
   // Метод форматирования цен
   String formatPricing(double pricing) {
     try {
-      if (baseUrl?.contains('vsegpt.ru') == true) {
-        return '${pricing.toStringAsFixed(3)}₽/K';
-      } else {
-        return '\$${(pricing * 1000000).toStringAsFixed(3)}/M';
-      }
+      // Сохранение в синхронном методе: формат зависит от провайдера.
+      // Т.к. тут нельзя await, используем эвристику: pricing для VSEGPT уже в ₽/K,
+      // для OpenRouter показываем $/M.
+      // Для корректного отображения можно позже расширить API, передавая провайдера.
+      return '\$${(pricing * 1000000).toStringAsFixed(3)}/M';
     } catch (e) {
       if (kDebugMode) {
         print('Error formatting pricing: $e');

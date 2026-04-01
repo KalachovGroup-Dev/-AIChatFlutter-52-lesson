@@ -14,11 +14,13 @@ import '../api/openrouter_client.dart';
 import '../services/database_service.dart';
 // Импорт сервиса для аналитики
 import '../services/analytics_service.dart';
+import '../services/secure_storage_service.dart';
 
 // Основной класс провайдера для управления состоянием чата
 class ChatProvider with ChangeNotifier {
   // Клиент для работы с API
   final OpenRouterClient _api = OpenRouterClient();
+  final SecureStorageService _secureStorage = SecureStorageService();
   // Список сообщений чата
   final List<ChatMessage> _messages = [];
   // Логи для отладки
@@ -29,6 +31,10 @@ class ChatProvider with ChangeNotifier {
   String? _currentModel;
   // Баланс пользователя
   String _balance = '\$0.00';
+  // Базовый URL активного провайдера (для UI)
+  String? _baseUrl;
+  bool _initialized = false;
+  bool _unlocked = false;
   // Флаг загрузки
   bool _isLoading = false;
 
@@ -51,8 +57,8 @@ class ChatProvider with ChangeNotifier {
   // Геттер для получения состояния загрузки
   bool get isLoading => _isLoading;
 
-  // Геттер для получения базового URL
-  String? get baseUrl => _api.baseUrl;
+  // Геттер для получения базового URL (для UI)
+  String? get baseUrl => _baseUrl;
 
   // Конструктор провайдера
   ChatProvider() {
@@ -60,11 +66,52 @@ class ChatProvider with ChangeNotifier {
     _initializeProvider();
   }
 
+  /// Разблокировать доступ к API (после корректного PIN).
+  Future<void> unlock() async {
+    _unlocked = true;
+    await reloadFromStorage();
+  }
+
+  /// Заблокировать доступ к API (например, после сброса).
+  void lock() {
+    _unlocked = false;
+    _initialized = false;
+    _baseUrl = null;
+    _availableModels = [];
+    _currentModel = null;
+    _balance = '\$0.00';
+    notifyListeners();
+  }
+
+  /// Явная переинициализация после успешного логина/смены ключа.
+  Future<void> reloadFromStorage() async {
+    _initialized = false;
+    await _initializeProvider();
+  }
+
   // Метод инициализации провайдера
   Future<void> _initializeProvider() async {
     try {
       // Логирование начала инициализации
       _log('Initializing provider...');
+
+      if (!_unlocked) {
+        _log('Provider is locked (PIN not confirmed). Skip init.');
+        return;
+      }
+
+      // Если ключа ещё нет (первый запуск), не пытаемся стучаться в API.
+      final hasKey = await _secureStorage.hasApiKey();
+      if (!hasKey) {
+        _log('No API key in secure storage. Skip provider init.');
+        return;
+      }
+
+      if (_initialized) return;
+      _initialized = true;
+
+      // Для UI сохраняем базовый URL активного провайдера.
+      _baseUrl = await _api.baseUrl;
       // Загрузка доступных моделей
       await _loadModels();
       _log('Models loaded: $_availableModels');
@@ -360,7 +407,14 @@ class ChatProvider with ChangeNotifier {
   }
 
   String formatPricing(double pricing) {
-    return _api.formatPricing(pricing);
+    try {
+      if (_baseUrl?.contains('vsegpt.ru') == true) {
+        return '${pricing.toStringAsFixed(3)}₽/K';
+      }
+      return '\$${(pricing * 1000000).toStringAsFixed(3)}/M';
+    } catch (_) {
+      return '0.00';
+    }
   }
 
   // Метод экспорта истории
